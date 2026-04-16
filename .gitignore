@@ -1,0 +1,5 @@
+.env
+.venv
+.jbeval
+__pycache__
+.idea
