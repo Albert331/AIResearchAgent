@@ -4,9 +4,10 @@ from typing import Annotated,List
 from langgraph.graph import StateGraph,START,END
 from langchain_ollama import ChatOllama
 from langgraph.graph.message import add_messages
-from langchain.chat_models import init_chat_model
 from typing_extensions import TypedDict
 from pydantic import BaseModel,Field
+
+from prompts import (get_reddit_analysis_messages,get_google_analysis_messages,get_bing_analysis_messages,get_reddit_url_analysis_messages,get_synthesis_messages)
 
 from weboperations import serp_search,reddit_search_api
 
