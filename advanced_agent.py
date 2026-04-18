@@ -1,6 +1,8 @@
-
+from certifi import contents
 from dotenv import load_dotenv
 from typing import Annotated,List
+
+from dotenv.cli import enumerate_env
 from langgraph.graph import StateGraph,START,END
 from langchain_ollama import ChatOllama
 from langgraph.graph.message import add_messages
@@ -9,7 +11,7 @@ from pydantic import BaseModel,Field
 
 from prompts import (get_reddit_analysis_messages,get_google_analysis_messages,get_bing_analysis_messages,get_reddit_url_analysis_messages,get_synthesis_messages)
 
-from weboperations import serp_search,reddit_search_api
+from weboperations import serp_search, reddit_search_api, reddit_post_retrieval
 
 #dataseit id
 
@@ -19,6 +21,11 @@ llm = ChatOllama(
     model='gemma3:4b',
     temperature=0
 )
+
+class RedditAnalysis(BaseModel):
+    selected_urls:List[str] = Field(
+        description="List of Reddit URLs that contain valuable information for answering the user's question"
+    )
 
 class State(TypedDict):
     messages: Annotated[list,add_messages]
@@ -56,22 +63,90 @@ def reddit_search(state: State):
     return {'reddit_res': reddit_res}
 
 def reddit_post_analysis(state: State):
-    return {'selected_redit_url':[]}
+    user_req = state.get('user_ques','')
+    reddit_result = state.get('reddit_res','')
+    if not reddit_result:
+        return None
+
+    structured_llm = llm.with_structured_output(RedditAnalysis)
+    messages = get_reddit_url_analysis_messages(user_req,reddit_result)
+
+    try:
+        analysis = structured_llm.invoke(messages)
+        selected_urls = analysis.selected_urls
+
+        for i, url in enumerate(selected_urls):
+            print(f'{i},{url}')
+
+    except Exception as e:
+        print(e)
+        selected_urls = []
+
+
+
+
+    return {'selected_redit_url':[selected_urls}
 
 def reddit_post(state: State):
-    return {'reddit_post_data':[]}
+        print('getting reddit post comments ')
+        selected_urls = state.get('selected_redit_url',[])
+
+        if not selected_urls:
+            return {'reddit_post_data':[]}
+
+        print(f'analysis of {len(selected_urls)} urls ongoing ')
+        reddit_post_data = reddit_post_retrieval(selected_urls)
+
+        if reddit_post_data:
+            print('succescfull got posts')
+        else:
+            print('failed to get data')
+            return {'reddit_post_data':reddit_post_data}
+
+
+        return {'reddit_post_data':[]}
 
 def google_analysis(state: State):
-    return {'google_analysis':''}
+    print('analysing google results')
+    user_ques = state.get('user_ques','')
+    google_res = state.get('google_res','')
+
+    messages = get_google_analysis_messages(user_ques,google_res)
+    reply = llm.invoke(messages)
+
+    return {'google_analysis':reply.content}
 
 def bing_analysis(state: State):
-    return {'bing_analysis':''}
+    print('analysing bing results')
+    user_ques = state.get('user_ques', '')
+    bing_res = state.get('bing_res', '')
+
+    messages = get_binggoogle_analysis_messages(user_ques, bing_res)
+    reply = llm.invoke(messages)
+    return {'bing_analysis':reply.content}
 
 def reddit_analysis(state: State):
-    return {'reddit_analysis':''}
+    print('analysing reddit results')
+    user_ques = state.get('user_ques', '')
+    reddit_res = state.get('reddit_res', '')
+    reddit_res = state.get('reddit_res', '')
+    reddit_post_data = state.get('reddit_post_data','')
+
+    messages = get_reddit_analysis_messages(user_ques, reddit_post_data,reddit_post_data)
+    reply = llm.invoke(messages)
+    return {'reddit_post_data':reply.content}
 
 def final_analysis(state: State):
-    return {'final_ans':''}
+    print('final result')
+    user_ques = state.get('user_ques', '')
+    google_analysis = state.get('google_analysis','')
+    bing_analysis = state.get('bing_analysis','')
+    reddit_analysis = state.get('reddit_analysis','')
+
+    messages = get_synthesis_messages(google_analysis,bing_analysis,reddit_analysis)
+    reply = llm.invoke(messages)
+
+    return {'final_ans':reply.content,'messages':[{'role':'ai','content':reply.content}]}
 
 
 gb=StateGraph(State)
