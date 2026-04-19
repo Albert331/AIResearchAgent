@@ -4,7 +4,7 @@ A lightweight AI agent that scrapes **Reddit**, **Google**, and **Bing** in real
 
 ---
 
-## 🧠 How It Works
+##  How It Works
 
 ```
 User Query
